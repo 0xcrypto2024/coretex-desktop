@@ -1,0 +1,9 @@
+pyrogram
+tgcrypto
+google-generativeai
+python-dotenv
+fastapi
+uvicorn
+jinja2
+notion-client
+

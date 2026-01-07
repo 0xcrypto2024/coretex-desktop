@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cortex Setup Wizard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Inter:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #9d50bb;
+            --bg: #0f0c29;
+            --text: #ffffff;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            width: 500px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .step {
+            display: none;
+        }
+
+        .step.active {
+            display: block;
+        }
+
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 8px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary);
+            border: none;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .status {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #b0b0b0;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="step active" id="step1">
+            <h1>Welcome to Cortex</h1>
+            <p>Your intelligence agent setup starts here.</p>
+            <button onclick="nextStep(2)">Get Started</button>
+        </div>
+        <div class="step" id="step2">
+            <h1>Credentials</h1>
+            <input type="number" id="api_id" placeholder="Telegram API ID">
+            <input type="text" id="api_hash" placeholder="Telegram API Hash">
+            <input type="password" id="genai_key" placeholder="Gemini API Key">
+            <button onclick="initSetup()">Next</button>
+            <div class="status" id="status2"></div>
+        </div>
+        <div class="step" id="step3">
+            <h1>Telegram Login</h1>
+            <div id="phoneArea">
+                <input type="text" id="phone" placeholder="+1234567890">
+                <button onclick="sendCode()">Send Code</button>
+            </div>
+            <div id="codeArea" style="display: none;">
+                <input type="text" id="code" placeholder="Verification Code">
+                <button onclick="verifyCode()">Verify</button>
+            </div>
+            <div id="passwordArea" style="display: none;">
+                <input type="password" id="password" placeholder="2FA Password">
+                <button onclick="verifyPassword()">Verify Password</button>
+            </div>
+            <div class="status" id="status3"></div>
+        </div>
+        <div class="step" id="step4">
+            <h1>Notion</h1>
+            <input type="password" id="notion_token" placeholder="Notion Token">
+            <input type="text" id="notion_db_id" placeholder="Database ID">
+            <button onclick="saveAll()">Finish</button>
+            <div class="status" id="status4"></div>
+        </div>
+        <div class="step" id="step5">
+            <h1>Done! 🚀</h1>
+            <p>Restart the app to begin.</p>
+        </div>
+    </div>
+    <script>
+        let config = {};
+        let session_string = "";
+        function nextStep(n) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.getElementById('step' + n).classList.add('active');
+        }
+        async function initSetup() {
+            config.API_ID = parseInt(document.getElementById('api_id').value);
+            config.API_HASH = document.getElementById('api_hash').value;
+            config.GENAI_KEY = document.getElementById('genai_key').value;
+            const res = await fetch('/api/setup/init', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_id: config.API_ID, api_hash: config.API_HASH })
+            });
+            if (res.ok) {
+                nextStep(3);
+            }
+        }
+        async function sendCode() {
+            const res = await fetch('/api/setup/send_code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: document.getElementById('phone').value })
+            });
+            const data = await res.json();
+            if (data.status === 'code_sent') {
+                document.getElementById('phoneArea').style.display = 'none';
+                document.getElementById('codeArea').style.display = 'block';
+            }
+        }
+        async function verifyCode() {
+            const res = await fetch('/api/setup/verify_code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: document.getElementById('code').value })
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                session_string = data.session_string;
+                nextStep(4);
+            }
+            else if (data.status === 'password_needed') {
+                document.getElementById('codeArea').style.display = 'none';
+                document.getElementById('passwordArea').style.display = 'block';
+            }
+        }
+        async function saveAll() {
+            config.NOTION_TOKEN = document.getElementById('notion_token').value;
+            config.NOTION_DATABASE_ID = document.getElementById('notion_db_id').value;
+            config.SESSION_STRING = session_string;
+            config.ENABLE_AUTO_REPLY = true;
+            config.WORKING_HOURS_START = 9;
+            config.WORKING_HOURS_END = 18;
+            const res = await fetch('/api/setup/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            if (res.ok) {
+                nextStep(5);
+            }
+        }
+    </script>
+</body>
+
+</html>

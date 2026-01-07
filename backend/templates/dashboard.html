@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        gray: {
+                            850: '#1f2937',
+                            900: '#111827',
+                            950: '#0b0f19',
+                        }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out forwards',
+                        'slide-up': 'slideUp 0.5s ease-out forwards',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0b0f19;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
+            background-attachment: fixed;
+            background-size: cover;
+        }
+
+        .glass {
+            background: rgba(17, 24, 39, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.6);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glow-hover:hover {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+
+<body class="text-white min-h-screen p-6 md:p-12 antialiased selection:bg-purple-500/30">
+
+    <div class="max-w-5xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 animate-fade-in">
+            <div>
+                <div class="flex items-center gap-3 mb-1">
+                    <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                    <h2 class="text-xs font-bold tracking-widest text-blue-400 uppercase">System Active</h2>
+                </div>
+                <h1
+                    class="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-gray-400 tracking-tight">
+                    Command Center
+                </h1>
+                <p class="text-gray-400 mt-2 text-lg font-light">Monitoring incoming tasks & priorities.</p>
+            </div>
+
+            <div id="status-badge"
+                class="mt-4 md:mt-0 glass-panel px-4 py-2 rounded-full flex items-center gap-2 group cursor-default transition-all duration-300 hover:border-green-500/30">
+                <div id="status-indicator"
+                    class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+                <span id="status-text"
+                    class="text-sm font-medium text-gray-300 group-hover:text-green-300 transition-colors">Operational</span>
+            </div>
+        </header>
+
+        <div id="main-content" class="animate-slide-up" style="animation-delay: 0.1s;">
+            <!-- Tabs -->
+            <div class="flex items-center gap-4 mb-8">
+                <button id="tab-tasks" onclick="switchTab('tasks')"
+                    class="px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg transition-all shadow-lg shadow-gray-900/20">
+                    Active Tasks
+                </button>
+                <button id="tab-discussions" onclick="switchTab('discussions')"
+                    class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-all cursor-pointer">
+                    Discussion History
+                </button>
+                <button id="tab-audit" onclick="switchTab('audit')"
+                    class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-all cursor-pointer">
+                    Daily Audit
+                </button>
+                <button id="tab-settings" onclick="switchTab('settings')"
+                    class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-all cursor-pointer">
+                    Settings
+                </button>
+            </div>
+
+            <div id="task-container" class="space-y-6">
+                <!-- Tasks/Settings will be injected here -->
+                <div class="text-center py-20">
+                    <div
+                        class="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4">
+                    </div>
+                    <p class="text-gray-500 font-light">Syncing with task matrix...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 flex flex-col gap-2 z-50"></div>
+
+    <script>
+        // State management
+        let currentTasks = [];
+        let currentHistory = [];
+        let currentConfig = {};
+        let activeTab = 'tasks';
+        let isFirstLoad = true;
+
+        // Tab Switching
+        function switchTab(tab) {
+            activeTab = tab;
+            const btnClassActive = 'px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg transition-all shadow-lg shadow-gray-900/20';
+            const btnClassInactive = 'px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-all cursor-pointer';
+
+            document.getElementById('tab-tasks').className = tab === 'tasks' ? btnClassActive : btnClassInactive;
+            document.getElementById('tab-discussions').className = tab === 'discussions' ? btnClassActive : btnClassInactive;
+            document.getElementById('tab-audit').className = tab === 'audit' ? btnClassActive : btnClassInactive;
+            document.getElementById('tab-settings').className = tab === 'settings' ? btnClassActive : btnClassInactive;
+
+            if (tab === 'tasks') {
+                renderTasks(currentTasks);
+            } else if (tab === 'discussions') {
+                fetchHistory();
+            } else if (tab === 'audit') {
+                fetchAudit();
+            } else if (tab === 'settings') {
+                fetchConfig();
+            }
+        }
+
+        async function fetchConfig() {
+            try {
+                const response = await fetch('/api/config');
+                currentConfig = await response.json();
+                renderSettings(currentConfig);
+            } catch (error) {
+                console.error('Error fetching config:', error);
+            }
+        }
+
+        async function saveConfig() {
+            const newConfig = {
+                ENABLE_AUTO_REPLY: document.getElementById('setting-auto-reply').checked,
+                WORKING_HOURS_START: parseInt(document.getElementById('setting-start').value),
+                WORKING_HOURS_END: parseInt(document.getElementById('setting-end').value),
+                ENABLE_LONG_TERM_MEMORY: document.getElementById('setting-memory').checked,
+                GROUP_TRIGGER_KEYWORDS: document.getElementById('setting-keywords').value.split(',').map(s => s.trim()).filter(s => s)
+            };
+
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newConfig)
+                });
+                if (response.ok) {
+                    showToast('Settings Saved Successfully', 'success');
+                } else {
+                    showToast('Failed to save settings', 'error');
+                }
+            } catch (e) {
+                showToast('Error saving settings', 'error');
+            }
+        }
+
+        function renderSettings(config) {
+            const container = document.getElementById('task-container');
+            const startStr = config.WORKING_HOURS_START ?? 9;
+            const endStr = config.WORKING_HOURS_END ?? 18;
+            const keywords = (config.GROUP_TRIGGER_KEYWORDS || []).join(', ');
+
+            container.innerHTML = `
+                <div class="flex items-center gap-4 mb-6 mt-2 animate-fade-in">
+                    <h2 class="text-xl font-semibold text-white">Agent Settings</h2>
+                    <div class="h-[1px] flex-1 bg-gradient-to-r from-gray-700 to-transparent"></div>
+                </div>
+                
+                <div class="glass p-8 rounded-2xl space-y-8 animate-slide-up border border-gray-800/50">
+                    <!-- Auto Reply -->
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-white font-medium">Automatic Replies</h3>
+                            <p class="text-gray-500 text-sm">Allow AI to reply automatically to identified tasks.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="setting-auto-reply" class="sr-only peer" ${config.ENABLE_AUTO_REPLY !== false ? 'checked' : ''}>
+                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                    <div class="h-[1px] w-full bg-gray-800/50"></div>
+
+                    <!-- Working Hours -->
+                    <div>
+                        <h3 class="text-white font-medium mb-4">Active Windows (24h)</h3>
+                        <div class="flex items-center gap-4">
+                            <div class="flex-1">
+                                <label class="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Start Hour</label>
+                                <input type="number" id="setting-start" min="0" max="23" value="${startStr}" 
+                                    class="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-2 text-white focus:border-blue-500 outline-none transition-all">
+                            </div>
+                            <div class="flex-1">
+                                <label class="text-xs text-gray-500 uppercase tracking-wider mb-2 block">End Hour</label>
+                                <input type="number" id="setting-end" min="0" max="23" value="${endStr}" 
+                                    class="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-2 text-white focus:border-blue-500 outline-none transition-all">
+                            </div>
+                        </div>
+                        <p class="text-gray-500 text-xs mt-3">Agent only replies automatically during these hours. Tasks are still captured 24/7.</p>
+                    </div>
+
+                    <div class="h-[1px] w-full bg-gray-800/50"></div>
+
+                    <!-- Memory -->
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-white font-medium">Long-term Memory</h3>
+                            <p class="text-gray-500 text-sm">Persist context across conversations for smarter replies.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="setting-memory" class="sr-only peer" ${config.ENABLE_LONG_TERM_MEMORY !== false ? 'checked' : ''}>
+                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                        </label>
+                    </div>
+
+                    <div class="h-[1px] w-full bg-gray-800/50"></div>
+
+                    <!-- Keywords -->
+                    <div>
+                        <h3 class="text-white font-medium mb-2">Group Mention Keywords</h3>
+                        <p class="text-gray-500 text-sm mb-4">Keywords that trigger AI evaluation in group chats.</p>
+                        <input type="text" id="setting-keywords" value="${keywords}" placeholder="everyone, all, team..."
+                            class="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-2 text-white focus:border-blue-500 outline-none transition-all">
+                    </div>
+
+                    <div class="flex justify-end pt-4">
+                        <button onclick="saveConfig()" 
+                            class="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-900/30 hover:scale-[1.02] active:scale-95">
+                            Save Configuration
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function fetchTasks() {
+            try {
+                const response = await fetch('/api/tasks');
+                const tasks = await response.json();
+
+                if (JSON.stringify(tasks) !== JSON.stringify(currentTasks)) {
+                    currentTasks = tasks;
+                    if (activeTab === 'tasks') renderTasks(tasks);
+                    if (isFirstLoad) {
+                        isFirstLoad = false;
+                        updateStatus(true);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching tasks:', error);
+                updateStatus(false);
+            }
+        }
+
+        async function fetchHistory() {
+            try {
+                const response = await fetch('/api/discussions/history');
+                const history = await response.json();
+                currentHistory = history;
+                renderHistory(history);
+            } catch (error) {
+                console.error('Error fetching history:', error);
+            }
+        }
+
+        async function fetchAudit() {
+            try {
+                const response = await fetch('/api/audit');
+                const logs = await response.json();
+                renderAudit(logs);
+            } catch (error) {
+                console.error('Error fetching audit:', error);
+            }
+        }
+
+        function toggleAuditEdit(index) {
+            const edit = document.getElementById(`audit-edit-${index}`);
+            if (edit.classList.contains('hidden')) {
+                edit.classList.remove('hidden');
+                edit.classList.add('flex');
+            } else {
+                edit.classList.add('hidden');
+                edit.classList.remove('flex');
+            }
+        }
+
+        async function createManualTaskFiltered(index) {
+            const log = currentAudit[index];
+            const summaryInput = document.getElementById(`audit-summary-${index}`).value;
+            const priorityInput = parseInt(document.getElementById(`audit-priority-${index}`).value);
+
+            try {
+                const response = await fetch('/api/tasks/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        summary: summaryInput,
+                        priority: priorityInput,
+                        sender: log.sender || "Unknown",
+                        deadline: log.evaluation.deadline
+                    })
+                });
+                if (response.ok) {
+                    showToast('Task Created Successfully', 'success');
+                    toggleAuditEdit(index);
+                    const btn = document.getElementById(`audit-action-btn-${index}`);
+                    if (btn) btn.outerHTML = '<div class="text-xs text-green-500 font-mono">Synced</div>';
+                } else {
+                    showToast('Failed to create task', 'error');
+                }
+            } catch (e) {
+                showToast('Error creating task', 'error');
+            }
+        }
+
+        function renderHistory(history) {
+            const container = document.getElementById('task-container');
+
+            if (history.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-20 glass rounded-2xl animate-fade-in">
+                         <h3 class="text-xl font-medium text-gray-200">No Discussion History</h3>
+                         <p class="text-gray-500 text-sm mt-1">Daily digests will appear here.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = `
+                <div class="flex items-center gap-4 mb-6 mt-2 animate-fade-in">
+                    <h2 class="text-xl font-semibold text-white">Daily Digests</h2>
+                    <div class="h-[1px] flex-1 bg-gradient-to-r from-gray-700 to-transparent"></div>
+                </div>`;
+
+            html += history.map((entry, index) => {
+                // Parse markdown-ish to HTML (very basic)
+                let content = entry.summary_text
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n/g, '<br>');
+
+                return `
+                <div class="glass p-6 rounded-2xl mb-6 transition-all duration-300 border border-gray-800 animate-slide-up" style="animation-delay: ${index * 0.1}s">
+                    <div class="flex justify-between items-center mb-4 border-b border-gray-800 pb-2">
+                        <span class="text-blue-400 font-mono text-xs font-bold px-2 py-1 bg-blue-900/20 rounded border border-blue-900/50">${entry.date}</span>
+                        <span class="text-gray-500 text-xs">${entry.point_count} Points Buffered</span>
+                    </div>
+                    <div class="text-gray-300 text-sm leading-relaxed font-light">
+                        ${content}
+                    </div>
+                </div>`;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        let currentAudit = [];
+        function renderAudit(logs) {
+            currentAudit = logs;
+            const container = document.getElementById('task-container');
+
+            if (logs.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-20 glass rounded-2xl animate-fade-in">
+                         <h3 class="text-xl font-medium text-gray-200">No Audit Logs</h3>
+                         <p class="text-gray-500 text-sm mt-1">AI evaluations will appear here.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = `
+                <div class="flex items-center gap-4 mb-6 mt-2 animate-fade-in">
+                    <h2 class="text-xl font-semibold text-white">Evaluation Audit Log (Last 24h)</h2>
+                    <div class="h-[1px] flex-1 bg-gradient-to-r from-gray-700 to-transparent"></div>
+                </div>
+                <div class="space-y-4">`;
+
+            html += logs.map((log, index) => {
+                const date = new Date(log.timestamp).toLocaleTimeString();
+                const prio = log.evaluation.priority;
+                const isNoise = prio === 4;
+                const isCrit = prio === 0;
+
+                let borderColor = isNoise ? 'border-gray-800' : 'border-blue-900/50';
+                if (isCrit) borderColor = 'border-red-900/50';
+
+                let badgeClass = 'bg-gray-800 text-gray-400';
+                if (prio === 0) badgeClass = 'bg-red-900/20 text-red-400 border border-red-500/20';
+                else if (prio === 1) badgeClass = 'bg-orange-900/20 text-orange-400 border border-orange-500/20';
+                else if (prio === 2) badgeClass = 'bg-amber-900/20 text-amber-400 border border-amber-500/20';
+                else if (prio === 3) badgeClass = 'bg-blue-900/20 text-blue-400 border border-blue-500/20';
+
+                return `
+                <div class="glass p-4 rounded-xl border ${borderColor} flex flex-col gap-2 animate-slide-up" style="animation-delay: ${index * 0.05}s">
+                    <div id="audit-row-${index}" class="flex gap-4 items-start w-full">
+                        <div class="min-w-[60px] text-xs font-mono text-gray-500 pt-1">${date}</div>
+                        
+                        <div class="flex-1">
+                            <div class="flex items-center gap-3 mb-1">
+                                <span class="text-sm font-bold text-gray-300">${log.sender}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono uppercase ${badgeClass}">P${prio}</span>
+                            </div>
+                            <p class="text-gray-400 text-xs italic mb-2">"${log.text.substring(0, 100)}${log.text.length > 100 ? '...' : ''}"</p>
+                            <p class="text-gray-200 text-sm">🤖 ${log.evaluation.summary}</p>
+                            ${log.evaluation.reply_text ?
+                        `<p class="mt-2 text-blue-300 text-xs flex items-start gap-1 p-2 bg-blue-900/10 rounded border border-blue-900/30">
+                                    <svg class="w-3 h-3 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+                                    <span>Reply: "${log.evaluation.reply_text}"</span>
+                                </p>` : ''
+                    }
+                            ${log.evaluation.save_memory ?
+                        `<p class="mt-2 text-purple-300 text-xs flex items-start gap-1 p-2 bg-purple-900/10 rounded border border-purple-900/30">
+                                    <svg class="w-3 h-3 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                                    <span>🧠 Memory: "${log.evaluation.save_memory}"</span>
+                                </p>` : ''
+                    }
+                        </div>
+
+                        ${isNoise ? `
+                        <button id="audit-action-btn-${index}" onclick="toggleAuditEdit(${index})" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700 transition-colors">
+                            Review
+                        </button>` : '<div class="text-xs text-green-500 font-mono">Synced</div>'}
+                    </div>
+
+                    <!-- Edit Panel (Hidden) -->
+                    <div id="audit-edit-${index}" class="hidden w-full bg-gray-900/50 p-3 rounded-lg border border-gray-700 mt-2 flex-col gap-3">
+                        <div class="flex gap-2 w-full">
+                            <input type="text" id="audit-summary-${index}" value="${log.evaluation.summary || ''}" 
+                                class="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-blue-500 focus:outline-none placeholder-gray-600"
+                                placeholder="Edit Summary..."
+                            >
+                            <select id="audit-priority-${index}" class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-blue-500 focus:outline-none">
+                                <option value="0">P0 (Crit)</option>
+                                <option value="1">P1 (High)</option>
+                                <option value="2" selected>P2 (Med)</option>
+                                <option value="3">P3 (Low)</option>
+                            </select>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button onclick="toggleAuditEdit(${index})" class="px-3 py-1 text-xs text-gray-400 hover:text-white">Cancel</button>
+                            <button onclick="createManualTaskFiltered(${index})" class="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded shadow-lg shadow-green-900/20">
+                                Create Task
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // ... (Existing Functions: updateStatus, markDone, etc. keep same) ...
+        async function updatePriority(taskId, newPriority) {
+            try {
+                const response = await fetch(`/api/priority/${taskId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ priority: newPriority })
+                });
+                if (response.ok) {
+                    showToast(`Priority updated to P${newPriority}`, 'success');
+                } else {
+                    showToast('Failed to update priority', 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                showToast('Error updating priority', 'error');
+            }
+        }
+
+        function updateStatus(isOnline) {
+            const badge = document.getElementById('status-badge');
+            const indicator = document.getElementById('status-indicator');
+            const text = document.getElementById('status-text');
+
+            if (isOnline) {
+                indicator.className = 'w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]';
+                text.innerText = 'Operational';
+                text.className = 'text-sm font-medium text-gray-300 group-hover:text-green-300 transition-colors';
+            } else {
+                indicator.className = 'w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]';
+                text.innerText = 'Disconnected';
+                text.className = 'text-sm font-medium text-gray-300 group-hover:text-red-300 transition-colors';
+            }
+        }
+
+        async function markDone(taskId) {
+            try {
+                await fetch(`/api/done/${taskId}`, { method: 'POST' });
+                showToast('Task marked as done', 'success');
+                fetchTasks();
+            } catch (error) {
+                showToast('Failed to update task', 'error');
+            }
+        }
+
+        async function rejectTask(taskId) {
+            try {
+                await fetch(`/api/reject/${taskId}`, { method: 'POST' });
+                showToast('Task rejected', 'neutral');
+                fetchTasks();
+            } catch (error) {
+                showToast('Failed to update task', 'error');
+            }
+        }
+
+        async function reopenTask(taskId) {
+            try {
+                await fetch(`/api/reopen/${taskId}`, { method: 'POST' });
+                showToast('Task reopened', 'success');
+                fetchTasks();
+            } catch (error) {
+                showToast('Failed to reopen task', 'error');
+            }
+        }
+
+        function showToast(message, type = 'neutral') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            let colors = 'bg-gray-800 border-gray-700 text-white';
+            if (type === 'success') colors = 'bg-green-900/80 border-green-800 text-green-100';
+            if (type === 'error') colors = 'bg-red-900/80 border-red-800 text-red-100';
+
+            toast.className = `px-4 py-3 rounded-lg border shadow-xl backdrop-blur-md transform transition-all duration-300 translate-y-10 opacity-0 ${colors}`;
+            toast.innerText = message;
+
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function renderTasks(tasks) {
+            if (activeTab !== 'tasks') return;
+            // ... (Rest of existing renderTasks logic) ...
+            const container = document.getElementById('task-container');
+            const activeTasks = tasks.filter(t => t.status !== 'done' && t.status !== 'rejected');
+            const doneTasks = tasks.filter(t => t.status === 'done' || t.status === 'rejected');
+
+            let html = '';
+
+            if (tasks.length === 0) {
+                html = `
+                    <div class="text-center py-24 glass-panel rounded-3xl animate-fade-in border-dashed border border-gray-700">
+                        <div class="text-5xl mb-4 opacity-50">✨</div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">All Caught Up</h3>
+                        <p class="text-gray-400 font-light">No pending directives found in the matrix.</p>
+                    </div>
+                `;
+                container.innerHTML = html;
+                return;
+            }
+            // ... (Task Rendering Logic) ...
+            // Render Active Tasks
+            if (activeTasks.length > 0) {
+                html += `<div class="flex items-center gap-4 mb-6 mt-2">
+                            <h2 class="text-xl font-semibold text-white">Active Directives</h2>
+                            <div class="h-[1px] flex-1 bg-gradient-to-r from-gray-700 to-transparent"></div>
+                            <span class="text-xs font-mono text-gray-500 bg-gray-900/50 px-2 py-1 rounded">${activeTasks.length} PENDING</span>
+                        </div>`;
+                html += activeTasks.map((task, index) => getTaskHTML(task, false, index)).join('');
+            } else if (doneTasks.length > 0) {
+                html += `
+                    <div class="text-center py-10 glass rounded-2xl mb-12 animate-fade-in">
+                         <h3 class="text-xl font-medium text-gray-200">Zero Active Tasks</h3>
+                         <p class="text-gray-500 text-sm mt-1">Excellent productivity levels detected.</p>
+                    </div>`;
+            }
+
+            // Render History (Done & Rejected)
+            if (doneTasks.length > 0) {
+                html += `
+                    <div class="mt-16 mb-6 flex items-center gap-4 opacity-70">
+                        <h2 class="text-lg font-medium text-gray-400">Archive</h2>
+                        <div class="h-[1px] flex-1 bg-gray-800"></div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 opacity-50 hover:opacity-100 transition-opacity duration-500">
+                        ${doneTasks.map((task, index) => getTaskHTML(task, true, index)).join('')}
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+
+        function getTaskHTML(task, isDone, index) {
+            const delay = index * 0.05; // Staggered animation
+            let pColor = 'text-blue-400 border-blue-500/20 bg-blue-500/5';
+            let glow = 'group-hover:border-blue-500/40';
+
+            if (task.priority === 0) {
+                pColor = 'text-red-400 border-red-500/20 bg-red-500/10 animate-pulse';
+                glow = 'border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.2)]';
+            } else if (task.priority === 1) {
+                pColor = 'text-orange-400 border-orange-500/20 bg-orange-500/5';
+                glow = 'group-hover:border-orange-500/40 group-hover:shadow-[0_0_20px_rgba(249,115,22,0.1)]';
+            } else if (task.priority === 2) {
+                pColor = 'text-amber-300 border-amber-400/20 bg-amber-400/5';
+                glow = 'group-hover:border-amber-400/40';
+            }
+
+            const statusLabel = task.status === 'rejected'
+                ? '<span class="text-red-500 text-xs font-bold tracking-wider uppercase border border-red-900/50 px-2 py-1 rounded bg-red-900/20">Rejected</span>'
+                : '<span class="text-emerald-500 text-xs font-bold tracking-wider uppercase border border-emerald-900/50 px-2 py-1 rounded bg-emerald-900/20">Completed</span>';
+
+            // Comment HTML pre-generation
+            const commentsHtml = renderCommentListHTML(task.id, task.comments || []);
+            const hasComments = task.comments && task.comments.length > 0;
+            // Default: Show if exists (User request: "display the comments by default")
+            const isRefHidden = false;
+
+            return `
+                <div class="glass p-6 rounded-2xl mb-4 transition-all duration-300 border border-gray-800 relative group animate-slide-up ${glow}" style="animation-delay: ${delay}s">
+                    <div class="flex flex-col md:flex-row justify-between items-start gap-4">
+                        <div class="flex-1 w-full">
+                            <div class="flex flex-wrap items-center gap-3 mb-3">
+                                <!-- Priority Selector -->
+                                <div class="relative group/priority">
+                                    <select onchange="updatePriority('${task.id}', this.value)" 
+                                        class="appearance-none cursor-pointer pl-3 pr-6 py-1 rounded-md text-xs font-bold font-mono border ${pColor} bg-gray-900/50 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all">
+                                        <option value="0" ${task.priority === 0 ? 'selected' : ''}>P0 (Crit)</option>
+                                        <option value="1" ${task.priority === 1 ? 'selected' : ''}>P1 (High)</option>
+                                        <option value="2" ${task.priority === 2 ? 'selected' : ''}>P2 (Med)</option>
+                                        <option value="3" ${task.priority >= 3 || task.priority == null ? 'selected' : ''}>P3 (Low)</option>
+                                    </select>
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-gray-500">
+                                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </div>
+                                </div>
+
+                                <span class="text-xs text-gray-500 font-mono flex items-center gap-1">
+                                    <svg class="w-3 h-3 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    ${task.time || 'Today'}
+                                </span>
+                                ${task.deadline ?
+                    `<span class="px-2 py-1 rounded-md text-xs font-semibold border text-amber-400 border-amber-500/20 bg-amber-500/5 flex items-center gap-1">
+                                        📅 ${task.deadline}
+                                    </span>` : ''}
+                                <span class="text-xs text-gray-400 flex items-center gap-1 bg-gray-900/80 px-2 py-1 rounded border border-gray-800/80">
+                                    👤 ${task.sender}
+                                </span>
+                            </div>
+                            
+                            <h3 class="text-lg md:text-xl font-medium text-gray-200 leading-relaxed ${isDone ? 'line-through text-gray-600' : ''}">
+                                ${task.summary}
+                            </h3>
+                            
+                            <div class="flex items-center gap-3 mt-2">
+                                ${task.link && task.link.startsWith('http') ? `
+                                    <a href="${task.link}" target="_blank" class="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                                        View Context ↗
+                                    </a>
+                                ` : ''}
+                                <button onclick="toggleComments('${task.id}')" class="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors">
+                                    <span id="comment-toggle-text-${task.id}">${isRefHidden ? '💬 Show Comments' : '💬 Hide Comments'}</span>
+                                </button>
+                            </div>
+
+                            <!-- Comment Section -->
+                            <div id="comments-${task.id}" class="${isRefHidden ? 'hidden' : ''} mt-4 pt-4 border-t border-gray-800/50">
+                                <div id="comment-list-${task.id}" class="space-y-3 mb-3">
+                                    ${commentsHtml}
+                                </div>
+                                <div class="flex gap-2">
+                                    <input type="text" id="comment-input-${task.id}" placeholder="Add a comment..." 
+                                        class="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500 transition-colors"
+                                        onkeypress="handleCommentEnter(event, '${task.id}')">
+                                    <button onclick="addComment('${task.id}')" 
+                                        class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-colors">
+                                        Send
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                        
+                        <div class="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
+                            ${!isDone ? `
+                            <button onclick="markDone('${task.id}')"
+                                class="flex-1 md:flex-none px-5 py-2.5 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-sm font-medium rounded-xl transition-all shadow-lg shadow-blue-900/30 hover:shadow-blue-900/50 hover:scale-[1.02] active:scale-95">
+                                Done
+                            </button>
+                            <button onclick="rejectTask('${task.id}')"
+                                class="flex-1 md:flex-none px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm font-medium rounded-xl transition-all border border-gray-700 hover:border-gray-600 hover:scale-[1.02] active:scale-95">
+                                Reject
+                            </button>` :
+                    `
+                            <div class="flex items-center gap-3">
+                                ${statusLabel}
+                                <button onclick="reopenTask('${task.id}')" title="Reopen Task"
+                                    class="p-2 text-gray-500 hover:text-white bg-gray-800/50 hover:bg-gray-700 rounded-lg transition-colors border border-gray-800 hover:border-gray-600">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                                </button>
+                            </div>
+                            `
+                }
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Comment Logic
+        async function toggleComments(taskId) {
+            const container = document.getElementById(`comments-${taskId}`);
+            const isHidden = container.classList.contains('hidden');
+
+            if (isHidden) {
+                container.classList.remove('hidden');
+                container.classList.add('animate-fade-in');
+                await fetchComments(taskId);
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        async function fetchComments(taskId) {
+            const list = document.getElementById(`comment-list-${taskId}`);
+            try {
+                const response = await fetch(`/api/comments/${taskId}`);
+                const comments = await response.json();
+                renderCommentList(taskId, comments);
+            } catch (error) {
+                console.error("Error fetching comments", error);
+                list.innerHTML = '<p class="text-xs text-red-400">Failed to load comments.</p>';
+            }
+        }
+
+        function renderCommentListHTML(taskId, comments) {
+            if (!comments || comments.length === 0) {
+                return '<p class="text-xs text-gray-600 italic">No comments yet.</p>';
+            }
+
+            return comments.map(c => `
+                <div class="group/comment flex justify-between items-start gap-2 bg-gray-800/30 p-2 rounded hover:bg-gray-800/60 transition-colors">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xs font-bold text-gray-400">${c.sender}</span>
+                            <span class="text-[10px] text-gray-600">${c.timestamp}</span>
+                        </div>
+                        <p class="text-sm text-gray-300">${c.text}</p>
+                    </div>
+                    <button onclick="deleteComment('${taskId}', '${c.id}')" 
+                        class="text-gray-600 hover:text-red-400 opacity-0 group-hover/comment:opacity-100 transition-all p-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function renderCommentList(taskId, comments) {
+            const list = document.getElementById(`comment-list-${taskId}`);
+            list.innerHTML = renderCommentListHTML(taskId, comments);
+        }
+
+        function handleCommentEnter(e, taskId) {
+            if (e.key === 'Enter') addComment(taskId);
+        }
+
+        async function addComment(taskId) {
+            const input = document.getElementById(`comment-input-${taskId}`);
+            const text = input.value.trim();
+            if (!text) return;
+
+            // Optimistic UI update could be done here, but let's wait for server
+            input.value = '';
+            input.disabled = true;
+
+            try {
+                const response = await fetch(`/api/comments/${taskId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text, sender: 'User' }) // TODO: Real user name?
+                });
+
+                if (response.ok) {
+                    await fetchComments(taskId); // Refresh
+                    showToast('Comment added', 'success');
+                } else {
+                    showToast('Failed to add comment', 'error');
+                    input.value = text; // Restore
+                }
+            } catch (e) {
+                console.error(e);
+                showToast('Error sending comment', 'error');
+            } finally {
+                input.disabled = false;
+                input.focus();
+            }
+        }
+
+        async function deleteComment(taskId, commentId) {
+            if (!confirm('Delete this comment?')) return;
+
+            try {
+                const response = await fetch(`/api/comments/${taskId}/${commentId}`, { method: 'DELETE' });
+                if (response.ok) {
+                    await fetchComments(taskId);
+                    showToast('Comment deleted', 'neutral');
+                } else {
+                    showToast('Failed to delete comment', 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                showToast('Error deleting comment', 'error');
+            }
+        }
+
+        // Initial load
+        fetchTasks();
+        // Poll every 5 seconds
+        setInterval(() => {
+            if (activeTab === 'tasks') fetchTasks();
+        }, 5000);
+    </script>
+</body>
+
+</html>
