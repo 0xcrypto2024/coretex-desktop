@@ -180,3 +180,113 @@ class Agent:
         except Exception as e:
             logger.error(f"Error analyzing feedback batch: {e}")
             return []
+
+    async def deduplicate_facts(self, facts: list) -> list:
+        """
+        Consolidates a list of facts by removing duplicates and merging related items.
+        """
+        if not facts: return []
+        
+        # Optimization: Don't call AI for small lists
+        if len(facts) < 5:
+            return sorted(list(set(facts)))
+        
+        facts_text = json.dumps(facts, indent=2)
+        
+        prompt = f"""
+        You are a memory optimizer.
+        Review the following list of facts/memories about the user.
+        
+        Goal: CONSOLIDATE and DEDUPLICATE.
+        
+        Rules:
+        1.  Merge identical or highly similar facts (e.g. "Works at Mantle" + "Mantle employee" -> "Works at Mantle").
+        2.  Resolve conflicts by keeping the most specific version (e.g. "Working on a project" vs "Working on Cortex" -> "Working on Cortex").
+        3.  Group related concepts into single concise sentences if possible.
+        4.  Maintain ALL unique information. Do not lose details.
+        5.  Return a clean JSON list of strings.
+        
+        Input Facts:
+        {facts_text}
+        
+        Output JSON ONLY:
+        {{
+            "consolidated_facts": [ ... ]
+        }}
+        """
+
+        try:
+            response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+            data = json.loads(response.text)
+            return data.get("consolidated_facts", [])
+        except Exception as e:
+            logger.error(f"Error deduplicating facts: {e}")
+            return facts # Fail safe: return original list
+
+    async def handle_session_turn(self, history_text: str, user_profile: str) -> dict:
+        """
+        Acts as a polite receptionist for interactive sessions.
+        """
+        prompt = f"""
+        You are Cortex, an AI assistant acting as a receptionist for JZ.
+        JZ is currently offline/unavailable.
+        
+        GOAL:
+        Interact with the user to gather necessary details about their request so JZ can handle it efficiently later.
+        
+        CONTEXT:
+        User Profile (What JZ does):
+        {user_profile}
+        
+        Conversation So Far:
+        {history_text}
+        
+        INSTRUCTIONS:
+        1. Be polite, professional, and concise.
+        2. If the user asks a question you can answer based on Profile, answer it.
+        3. If the user wants to schedule something, ask for time/date.
+        4. If the user reporting an issue, ask for details.
+        5. DO NOT promise specific actions ("JZ will do this"). Say "I will let JZ know".
+        6. If you have enough info, or the user says "thanks/bye", set status to FINISH.
+        
+        OUTPUT JSON ONLY:
+        {{
+            "reply": "Your message to the user...", 
+            "status": "CONTINUE" or "FINISH"
+        }}
+        """
+        
+        try:
+            response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+            data = json.loads(response.text)
+            return data
+        except Exception as e:
+            logger.error(f"Error in session turn: {e}")
+            return {"reply": "I've noted that down. (Error)", "status": "FINISH"}
+
+    async def summarize_session(self, history_text: str) -> dict:
+        """
+        Summarizes a finished interactive session into a Task.
+        """
+        prompt = f"""
+        Analyze this finished conversation between a User and Cortex (AI Receptionist).
+        
+        Conversation:
+        {history_text}
+        
+        Create a concise TASK for JZ based on the outcome.
+        
+        OUTPUT JSON ONLY:
+        {{
+            "summary": "Actionable task summary...",
+            "priority": 1-4 (Int),
+            "deadline": "YYYY-MM-DD" or null
+        }}
+        """
+        try:
+            response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+            data = json.loads(response.text)
+            return data
+        except Exception as e:
+            logger.error(f"Error summarizing session: {e}")
+            return {"summary": "Review conversation (Summary Failed)", "priority": 3}

@@ -21,6 +21,8 @@ from discussion_buffer import DiscussionBuffer
 discussion_buffer = DiscussionBuffer()
 from memory_manager import MemoryManager
 memory_manager = MemoryManager()
+from auto_session_manager import AutoSessionManager
+auto_session = AutoSessionManager()
 
 # Initialize Client
 if SESSION_STRING:
@@ -94,13 +96,60 @@ async def message_handler(client, message):
 
     logger.info(f"Step 4: AI Analysis Complete (P{analysis.get('priority', 4)}): {analysis.get('summary')}")
     
+    
+    # ----------------------------------------------------
+    # INTERACTIVE AUTO-REPLY SESSIONS
+    # ----------------------------------------------------
+    if auto_session.is_active(message.chat.id):
+        # We are in an active session
+        auto_session.add_message(message.chat.id, "user", message.text)
+        history = auto_session.get_history(message.chat.id)
+        
+        # Ask Agent for next turn
+        logger.info(f"🔄 Processing Session Turn for {sender}...")
+        turn_result = await intelligence_agent.handle_session_turn(history, memory_manager.get_memories_text())
+        
+        reply = turn_result.get("reply")
+        status = turn_result.get("status", "CONTINUE")
+        
+        if reply:
+            auto_session.add_message(message.chat.id, "agent", reply)
+            await message.reply_text(reply)
+            
+        if status == "FINISH":
+            logger.info(f"🏁 Session Finished for {sender}. Summarizing...")
+            auto_session.close_session(message.chat.id)
+            
+            # Summarize and Create Task
+            summary_result = await intelligence_agent.summarize_session(history)
+            
+            # Add Final Task
+            # We use p_val 4 here unless the summary says otherwise, but usually user wants to see it.
+            # Let's trust the AI summary priority
+            p_final = int(summary_result.get("priority", 3))
+            
+            safe_link = get_message_link(message)
+            await tm.add_task(
+                priority=p_final,
+                summary="[Session] " + summary_result.get("summary", "Session Completed"),
+                sender=sender,
+                link=safe_link,
+                deadline=summary_result.get("deadline"),
+                user_id=message.chat.id
+            )
+            
+            # Notify User of Result
+            await client.send_message("me", f"✅ **Interactive Session Finished ({sender})**\nSummary: {summary_result.get('summary')}")
+            
+        return # STOP HERE for sessions
+    # ----------------------------------------------------
+
     # SAVE MEMORY
     if ENABLE_LONG_TERM_MEMORY and analysis.get('save_memory'):
         memory_manager.add_memory(analysis['save_memory'])
 
     # AUDIT LOG MOVED TO END
 
-        
     # AUTO-REPLY LOGIC
     # User feedback: "no confirmation messages", "allow disable", "polite tone" (handled by prompt)
     reply_text = analysis.get('reply_text')
@@ -140,9 +189,14 @@ async def message_handler(client, message):
             logger.info(f"🤖 Auto-Replying to {sender} (P{p_val}): {reply_text}")
             final_text = f"{reply_text}\n\n_(🤖 Auto-reply: Out of working hours)_"
             await message.reply_text(final_text)
+            
+            # START SESSION
+            auto_session.start_session(message.chat.id, initial_user_msg=message.text, initial_reply=reply_text)
+            return # Done for this cycle
+            
         except Exception as e:
             logger.error(f"Failed to auto-reply: {e}")
-        
+            
     task_created_flag = False
 
     if p_val <= 3 and analysis.get('action_required', False):

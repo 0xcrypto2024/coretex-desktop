@@ -49,3 +49,19 @@ class MemoryManager:
             return "No long-term memories yet."
         
         return "Long-term Memory (Facts):" + "".join([f"\n- {m}" for m in self.memories])
+
+    async def consolidate_memories(self, agent_instance):
+        """Uses the Agent to clean up and deduplicate memories."""
+        if not self.memories or len(self.memories) < 5:
+            return
+            
+        logger.info(f"Consolidating {len(self.memories)} memories...")
+        new_memories = await agent_instance.deduplicate_facts(self.memories)
+        
+        if new_memories and len(new_memories) > 0:
+            removed = len(self.memories) - len(new_memories)
+            self.memories = new_memories
+            self._save_memories()
+            logger.info(f"Memory Consolidation Complete. Removed {removed} duplicates.")
+            return True
+        return False
