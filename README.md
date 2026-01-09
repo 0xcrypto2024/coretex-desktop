@@ -93,10 +93,39 @@ cortex-desktop/
 └── README.md           # This file
 ```
 
+## 🔐 Configuration & Security
+
+The application stores your credentials (API keys, Session data) in:
+
+**`~/.cortex/`** (Linux/macOS)
+
+*   `config.json`: API Keys and settings.
+*   `cortex.session`: Telegram Auth token.
+*   `memory.json`: Long-term memory storage.
+
+> [!WARNING]
+> **Data is stored UNENCRYPTED**.
+> This is standard for developer tools, but means any software running as your user can read these credentials.
+> **Recommendation**: Run `chmod 600 ~/.cortex/config.json` to strictly limit permissions to your user only.
+
 ## ⚠️ Troubleshooting
 
+**"App is damaged and can't be opened" (macOS)**
+This occurs because the release is unsigned. Fix it by running:
+```bash
+xattr -cr /Applications/Cortex.app
+```
+
+**Logs & Debugging**
+Logs are written to `~/.cortex/cortex.log`.
+If the app crashes immediately on start (missing logs), run the binary manually to see the output:
+```bash
+/Applications/Cortex.app/Contents/MacOS/cortex-agent-*
+```
+
 **"Port 8000 already in use"**
-*   The sidecar usually cleans up after itself. If it crashes hard, run `fuser -k 8000/tcp` to kill the zombie process.
+*   The sidecar usually cleans up after itself via a **stdin watchdog** (if the parent app dies, the agent dies).
+*   If it crashes hard, run `fuser -k 8000/tcp` (Linux) or `lsof -i :8000` (macOS) to find and kill the process.
 
 **"ModuleNotFoundError" in Sidecar**
-*   This usually means PyInstaller missed a file. Check `backend/build.py` and ensure the new module is added to the `scripts` list or `hiddenimports`.
+*   This usually means PyInstaller missed a file. Check `backend/build.py` and ensure the new module is added to `hiddenimports`.
