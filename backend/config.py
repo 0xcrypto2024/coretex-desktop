@@ -32,7 +32,7 @@ GROUP_TRIGGER_KEYWORDS = get_conf("GROUP_TRIGGER_KEYWORDS") or ["everyone", "all
 
 # Google AI
 GENAI_KEY = get_conf("GENAI_KEY")
-GENAI_MODEL = get_conf("GENAI_MODEL", "gemini-3.0-flash-exp")
+GENAI_MODEL = get_conf("GENAI_MODEL", "gemini-2.0-flash-exp")
 
 # Notion Config
 NOTION_TOKEN = get_conf("NOTION_TOKEN")
