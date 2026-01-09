@@ -32,6 +32,7 @@ class DiscussionBuffer:
     def _ensure_history_file(self):
         """Ensures history file exists."""
         if not os.path.exists(HISTORY_FILE):
+            os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
             with open(HISTORY_FILE, "w") as f:
                 json.dump([], f)
 
