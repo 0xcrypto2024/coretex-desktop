@@ -16,6 +16,7 @@ lerna-debug.log*
 # Python
 backend/venv
 backend/__pycache__
+backend/build
 *.pyc
 *.spec
 
@@ -34,3 +35,5 @@ src-tauri/binaries
 # App Config (Secrets)
 .cortex
 backend/.env
+
+ROADMAP.md

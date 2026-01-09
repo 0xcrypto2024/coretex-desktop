@@ -40,6 +40,9 @@ def build():
         '--hidden-import=listener',
         '--hidden-import=uvicorn',
         '--hidden-import=fastapi',
+        '--hidden-import=auto_session_manager',
+        '--hidden-import=memory_manager',
+        '--hidden-import=learning_service',
         '--clean'
     ])
 

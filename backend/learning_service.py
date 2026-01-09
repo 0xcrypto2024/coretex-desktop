@@ -138,6 +138,9 @@ class LearningService:
         # Update timestamp if we had one (Using current time as a proxy for 'run time')
         self.last_feedback_ts = datetime.now().isoformat()
         self._save_state()
+        
+        # Trigger Consolidation if needed
+        await self.memory_manager.consolidate_memories(self.agent)
 
     async def start_scheduler(self):
         """Background loop."""
