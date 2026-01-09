@@ -6,4 +6,5 @@ fastapi
 uvicorn
 jinja2
 notion-client
+pyinstaller
 
