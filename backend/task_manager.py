@@ -95,6 +95,20 @@ class TaskManager:
             "rejected": rejected
         }
 
+    async def get_rejected_tasks_with_comments(self, limit: int = 50):
+        """Returns lists of rejected tasks that have explanation comments."""
+        all_tasks = await self.get_tasks()
+        rejected_with_comments = [
+            {
+                "summary": t['summary'], 
+                "sender": t.get("sender", "Unknown"),
+                "comments": [c['text'] for c in t.get("comments", [])]
+            } 
+            for t in all_tasks 
+            if t.get("status") == "rejected" and t.get("comments")
+        ]
+        return rejected_with_comments[:limit]
+
 
     async def get_daily_briefing_tasks(self):
         """Returns top priority tasks for daily digest."""

@@ -145,3 +145,38 @@ class Agent:
         except Exception as e:
             logger.error(f"Error analyzing context batch: {e}")
             return []
+
+    async def analyze_feedback_batch(self, feedback_text: str) -> list:
+        """
+        Analyzes a batch of rejected tasks and comments to extract permanent rules.
+        """
+        if not feedback_text: return []
+        
+        prompt = f"""
+        Analyze the following REJECTED tasks and the user's comments explaining why.
+        Extract PERMANENT rules or preferences that I (the Agent) should follow to avoid these mistakes in the future.
+        
+        Focus on:
+        - Scheduling constraints (e.g. "No meetings on Friday")
+        - Content filters (e.g. "Ignore crypto news")
+        - Priority adjustments (e.g. "Newsletters are always P4")
+        
+        Ignore:
+        - One-off mistakes that don't imply a general rule.
+        
+        Feedback History:
+        {feedback_text}
+        
+        Output JSON ONLY:
+        {{
+            "rules": ["rule 1", "rule 2"]
+        }}
+        """
+
+        try:
+            response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+            data = json.loads(response.text)
+            return data.get("rules", [])
+        except Exception as e:
+            logger.error(f"Error analyzing feedback batch: {e}")
+            return []

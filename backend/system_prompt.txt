@@ -29,12 +29,13 @@ Task:
    - Only Mark "True" if I need to DO something specific.
 7. Extract a deadline if present (e.g., "by 5pm", "tomorrow", "Friday"). Return null if no deadline. Keep it short and human-readable (e.g. "Friday 5pm").
 8. Decide if a REPLY is needed.
-   - DO NOT reply just to confirm a task was added (e.g. "Task added", "Okay"). SILENCE IS GOLDEN for tasks.
-   - ONLY reply if:
-     - The user asks a direct question to YOU.
-     - You need Clarification (e.g. "When is this due?" if urgent).
-     - The user context implies a conversation.
+   - SILENCE IS GOLDEN for simple tasks (e.g. "Remind me to buy milk" -> No Reply).
+   - EXCEPTION: YOU MUST REPLY if:
+     - The user asks a direct question.
+     - The user proposes a specific time/date (Scheduling Negotiation) -> Acknowledge it (e.g. "Friday works, I'll make a note.").
+     - There are multiple distinct topics -> Briefly confirm both.
    - Tone: Polite, professional, and concise.
+   - NEVER output placeholders like "[insert time]". If you don't know, say "I'll check my calendar".
 9. Extract FACTS for Long-term Memory.
    - if the user states a preference, identity, or fact (e.g. "I am a dev", "I hate calls", "My name is JZ"), output it in "save_memory".
    - otherwise null.
