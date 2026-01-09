@@ -87,15 +87,29 @@ async def main():
 
     # 3. Idle until signal
     import signal
+    import sys
     stop_event = asyncio.Event()
 
     def handle_signal(signum, frame):
         logger.info(f"Received signal {signum}. Stopping...")
-        # Schedule the stop event in the loop
         asyncio.create_task(set_stop())
 
     async def set_stop():
         stop_event.set()
+
+    # Watchdog for Parent Process Death (Tauri Sidecar Pattern)
+    async def watchdog():
+        """Reads stdin. If EOF (pipe broken), stop the agent."""
+        try:
+            reader = asyncio.StreamReader()
+            protocol = asyncio.StreamReaderProtocol(reader)
+            await asyncio.get_running_loop().connect_read_pipe(lambda: protocol, sys.stdin)
+            # Wait for EOF (read returns empty bytes)
+            await reader.read() 
+            logger.info("Stdin closed (Parent process died). Shutting down...")
+            await set_stop()
+        except Exception as e:
+            logger.error(f"Watchdog error: {e}")
 
     # Register signals
     loop = asyncio.get_running_loop()
@@ -103,9 +117,11 @@ async def main():
         try:
             loop.add_signal_handler(sig, lambda: asyncio.create_task(set_stop()))
         except NotImplementedError:
-            # Windows or fallback
             signal.signal(sig, handle_signal)
 
+    # Start Watchdog
+    watchdog_task = asyncio.create_task(watchdog())
+    
     logger.info("Service is RUNNING. Waiting for stop signal...")
     try:
         await stop_event.wait()
@@ -113,6 +129,8 @@ async def main():
         logger.info("Main task cancelled.")
     finally:
         logger.info("Shutting down services...")
+        
+        watchdog_task.cancel()
         
         # Stop Server
         server_task.cancel()
