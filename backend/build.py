@@ -43,7 +43,7 @@ def build():
         '--hidden-import=auto_session_manager',
         '--hidden-import=memory_manager',
         '--hidden-import=learning_service',
-        '--clean'
+        '--hidden-import=google.genai',
     ])
 
     src = os.path.join("dist", binary_name)

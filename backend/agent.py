@@ -1,4 +1,5 @@
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import os
 import json
 import logging
@@ -6,24 +7,24 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from config import GENAI_KEY
+from config import GENAI_KEY, GENAI_MODEL
 
 class Agent:
     def __init__(self):
         self.api_key = GENAI_KEY
         if not self.api_key:
             logger.warning("GENAI_KEY not found. Agent will not function correctly.")
-            self.model = None
+            self.model_name = None
             return
         
-        genai.configure(api_key=self.api_key)
         try:
-            self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            self.client = genai.Client(api_key=self.api_key)
+            self.model_name = GENAI_MODEL
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
-            self.model = None
+            self.client = None
 
-    async def analyze_message(self, message_text: str, sender_info: str, memory_text: str = "") -> dict:
+    async def analyze_message(self, message_text: str, sender_info: str, user_name: str, memory_text: str = "") -> dict:
         """
         Analyzes a message to determine importance and generate a summary.
         Returns a dictionary: { "priority": int, "summary": str, "action_required": bool, "deadline": str, "reply_text": str, "save_memory": str }
@@ -45,7 +46,7 @@ class Agent:
             with open(prompt_file, "r") as f:
                 template_str = f.read()
                 template = Template(template_str)
-                prompt = template.render(memory_text=memory_text, message_text=message_text)
+                prompt = template.render(memory_text=memory_text, message_text=message_text, user_name=user_name)
         except Exception as e:
             logger.error(f"Failed to load system_prompt.txt: {e}")
             # Fallback (Generic)
@@ -57,7 +58,11 @@ class Agent:
         
         for attempt in range(max_retries):
             try:
-                response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+                response = await self.client.aio.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(response_mime_type="application/json")
+                )
                 data = json.loads(response.text)
                 
                 # Robustness: Handle if AI returns a list instead of a dict
@@ -103,12 +108,15 @@ class Agent:
         """
         
         try:
-            response = await self.model.generate_content_async(prompt)
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
             return response.text
         except Exception as e:
             logger.error(f"Error generating summary: {e}")
             return "Failed to generate summary."
-    async def analyze_context_batch(self, history_text: str) -> list:
+    async def analyze_context_batch(self, history_text: str, user_name: str) -> list:
         """
         Analyzes a batch of chat history to extract persistent user facts.
         Returns a list of strings (facts).
@@ -117,7 +125,7 @@ class Agent:
         
         prompt = f"""
         Read the following Telegram chat history.
-        Identify and extract any PERSISTENT facts, identities, roles, or preferences about the user ("Me" or "JZ").
+        Identify and extract any PERSISTENT facts, identities, roles, or preferences about the user ("Me" or "{user_name}").
         
         Focus on:
         - Work Context (What projects are they working on?)
@@ -139,7 +147,11 @@ class Agent:
         """
 
         try:
-            response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
             data = json.loads(response.text)
             return data.get("facts", [])
         except Exception as e:
@@ -174,7 +186,11 @@ class Agent:
         """
 
         try:
-            response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
             data = json.loads(response.text)
             return data.get("rules", [])
         except Exception as e:
@@ -200,8 +216,8 @@ class Agent:
         Goal: CONSOLIDATE and DEDUPLICATE.
         
         Rules:
-        1.  Merge identical or highly similar facts (e.g. "Works at Mantle" + "Mantle employee" -> "Works at Mantle").
-        2.  Resolve conflicts by keeping the most specific version (e.g. "Working on a project" vs "Working on Cortex" -> "Working on Cortex").
+        1.  Merge identical or highly similar facts (e.g. "Works at TechCorp" + "TechCorp employee" -> "Works at TechCorp").
+        2.  Resolve conflicts by keeping the most specific version (e.g. "Working on a project" vs "Working on Project X" -> "Working on Project X").
         3.  Group related concepts into single concise sentences if possible.
         4.  Maintain ALL unique information. Do not lose details.
         5.  Return a clean JSON list of strings.
@@ -216,26 +232,30 @@ class Agent:
         """
 
         try:
-            response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
             data = json.loads(response.text)
             return data.get("consolidated_facts", [])
         except Exception as e:
             logger.error(f"Error deduplicating facts: {e}")
             return facts # Fail safe: return original list
 
-    async def handle_session_turn(self, history_text: str, user_profile: str) -> dict:
+    async def handle_session_turn(self, history_text: str, user_profile: str, user_name: str) -> dict:
         """
         Acts as a polite receptionist for interactive sessions.
         """
         prompt = f"""
-        You are Cortex, an AI assistant acting as a receptionist for JZ.
-        JZ is currently offline/unavailable.
+        You are Cortex, an AI assistant acting as a receptionist for {user_name}.
+        {user_name} is currently offline/unavailable.
         
         GOAL:
-        Interact with the user to gather necessary details about their request so JZ can handle it efficiently later.
+        Interact with the user to gather necessary details about their request so {user_name} can handle it efficiently later.
         
         CONTEXT:
-        User Profile (What JZ does):
+        User Profile (What {user_name} does):
         {user_profile}
         
         Conversation So Far:
@@ -246,7 +266,7 @@ class Agent:
         2. If the user asks a question you can answer based on Profile, answer it.
         3. If the user wants to schedule something, ask for time/date.
         4. If the user reporting an issue, ask for details.
-        5. DO NOT promise specific actions ("JZ will do this"). Say "I will let JZ know".
+        5. DO NOT promise specific actions ("{user_name} will do this"). Say "I will let {user_name} know".
         6. If you have enough info, or the user says "thanks/bye", set status to FINISH.
         
         OUTPUT JSON ONLY:
@@ -257,14 +277,18 @@ class Agent:
         """
         
         try:
-            response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
             data = json.loads(response.text)
             return data
         except Exception as e:
             logger.error(f"Error in session turn: {e}")
             return {"reply": "I've noted that down. (Error)", "status": "FINISH"}
 
-    async def summarize_session(self, history_text: str) -> dict:
+    async def summarize_session(self, history_text: str, user_name: str) -> dict:
         """
         Summarizes a finished interactive session into a Task.
         """
@@ -274,7 +298,7 @@ class Agent:
         Conversation:
         {history_text}
         
-        Create a concise TASK for JZ based on the outcome.
+        Create a concise TASK for {user_name} based on the outcome.
         
         OUTPUT JSON ONLY:
         {{
@@ -284,7 +308,11 @@ class Agent:
         }}
         """
         try:
-            response = await self.model.generate_content_async(prompt, generation_config={"response_mime_type": "application/json"})
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
             data = json.loads(response.text)
             return data
         except Exception as e:

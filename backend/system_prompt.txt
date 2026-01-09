@@ -37,7 +37,7 @@ Task:
    - Tone: Polite, professional, and concise.
    - NEVER output placeholders like "[insert time]". If you don't know, say "I'll check my calendar".
 9. Extract FACTS for Long-term Memory.
-   - if the user states a preference, identity, or fact (e.g. "I am a dev", "I hate calls", "My name is JZ"), output it in "save_memory".
+   - if the user states a preference, identity, or fact (e.g. "I am a dev", "I hate calls", "My name is {{ user_name }}"), output it in "save_memory".
    - otherwise null.
 
 Output JSON only:

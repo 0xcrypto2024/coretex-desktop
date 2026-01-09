@@ -87,8 +87,12 @@ async def message_handler(client, message):
     if ENABLE_LONG_TERM_MEMORY:
         memory_text += "\n\n" + memory_manager.get_memories_text()
 
-    logger.info(f"Step 3: Sending to AI Agent for analysis (Model: {intelligence_agent.model})...")
-    analysis = await intelligence_agent.analyze_message(context_text, sender, memory_text)
+    my_info = await client.get_me() 
+    my_name = (my_info.first_name or "") + (" " + my_info.last_name if my_info.last_name else "")
+    if not my_name.strip(): my_name = "User"
+
+    logger.info(f"Step 3: Sending to AI Agent for analysis (Model: {intelligence_agent.model_name})...")
+    analysis = await intelligence_agent.analyze_message(context_text, sender, my_name, memory_text)
     # Ensure analysis is a dict
     if not isinstance(analysis, dict):
         logger.error(f"Analysis is not a dict: {type(analysis)} | Value: {analysis}")
@@ -107,7 +111,12 @@ async def message_handler(client, message):
         
         # Ask Agent for next turn
         logger.info(f"🔄 Processing Session Turn for {sender}...")
-        turn_result = await intelligence_agent.handle_session_turn(history, memory_manager.get_memories_text())
+        
+        my_info = await client.get_me() 
+        my_name = (my_info.first_name or "") + (" " + my_info.last_name if my_info.last_name else "")
+        if not my_name.strip(): my_name = "User"
+
+        turn_result = await intelligence_agent.handle_session_turn(history, memory_manager.get_memories_text(), my_name)
         
         reply = turn_result.get("reply")
         status = turn_result.get("status", "CONTINUE")
@@ -121,7 +130,7 @@ async def message_handler(client, message):
             auto_session.close_session(message.chat.id)
             
             # Summarize and Create Task
-            summary_result = await intelligence_agent.summarize_session(history)
+            summary_result = await intelligence_agent.summarize_session(history, my_name)
             
             # Add Final Task
             # We use p_val 4 here unless the summary says otherwise, but usually user wants to see it.

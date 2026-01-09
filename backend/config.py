@@ -32,6 +32,7 @@ GROUP_TRIGGER_KEYWORDS = get_conf("GROUP_TRIGGER_KEYWORDS") or ["everyone", "all
 
 # Google AI
 GENAI_KEY = get_conf("GENAI_KEY")
+GENAI_MODEL = get_conf("GENAI_MODEL", "gemini-3.0-flash-exp")
 
 # Notion Config
 NOTION_TOKEN = get_conf("NOTION_TOKEN")
@@ -41,6 +42,7 @@ NOTION_DATABASE_ID = get_conf("NOTION_DATABASE_ID")
 ENABLE_AUTO_REPLY = str(get_conf("ENABLE_AUTO_REPLY", "true")).lower() == "true"
 WORKING_HOURS_START = int(get_conf("WORKING_HOURS_START", "9"))
 WORKING_HOURS_END = int(get_conf("WORKING_HOURS_END", "18"))
+USER_NAME = get_conf("USER_NAME", "the User")
 
 # Long-term Memory Config
 ENABLE_LONG_TERM_MEMORY = str(get_conf("ENABLE_LONG_TERM_MEMORY", "true")).lower() == "true"
