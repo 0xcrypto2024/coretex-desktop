@@ -97,20 +97,6 @@ async def main():
     async def set_stop():
         stop_event.set()
 
-    # Watchdog for Parent Process Death (Tauri Sidecar Pattern)
-    async def watchdog():
-        """Reads stdin. If EOF (pipe broken), stop the agent."""
-        try:
-            reader = asyncio.StreamReader()
-            protocol = asyncio.StreamReaderProtocol(reader)
-            await asyncio.get_running_loop().connect_read_pipe(lambda: protocol, sys.stdin)
-            # Wait for EOF (read returns empty bytes)
-            await reader.read() 
-            logger.info("Stdin closed (Parent process died). Shutting down...")
-            await set_stop()
-        except Exception as e:
-            logger.error(f"Watchdog error: {e}")
-
     # Register signals
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -119,9 +105,6 @@ async def main():
         except NotImplementedError:
             signal.signal(sig, handle_signal)
 
-    # Start Watchdog
-    watchdog_task = asyncio.create_task(watchdog())
-    
     logger.info("Service is RUNNING. Waiting for stop signal...")
     try:
         await stop_event.wait()
@@ -129,8 +112,6 @@ async def main():
         logger.info("Main task cancelled.")
     finally:
         logger.info("Shutting down services...")
-        
-        watchdog_task.cancel()
         
         # Stop Server
         server_task.cancel()

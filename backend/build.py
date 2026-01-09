@@ -45,6 +45,7 @@ def build():
         '--paths=.',
         '--add-data=templates:templates',
         '--add-data=system_prompt.txt:.',
+        '--hidden-import=notion_client',
         '--hidden-import=notion_sync',
         '--hidden-import=utils',
         '--hidden-import=task_manager',
