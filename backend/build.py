@@ -10,6 +10,17 @@ def get_target_triple():
             if line.startswith('host:'):
                 return line.split(': ')[1].strip()
     except: pass
+    
+    # Fallback based on python
+    import platform
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    
+    if system == "darwin":
+        return "aarch64-apple-darwin" if machine == "arm64" else "x86_64-apple-darwin"
+    elif system == "windows":
+        return "x86_64-pc-windows-msvc"
+    
     return "x86_64-unknown-linux-gnu"
 
 def build():
