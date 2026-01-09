@@ -86,10 +86,31 @@ async def main():
     learning_task = asyncio.create_task(rec_service.start_scheduler())
 
     # 3. Idle until signal
+    import signal
+    stop_event = asyncio.Event()
+
+    def handle_signal(signum, frame):
+        logger.info(f"Received signal {signum}. Stopping...")
+        # Schedule the stop event in the loop
+        asyncio.create_task(set_stop())
+
+    async def set_stop():
+        stop_event.set()
+
+    # Register signals
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, lambda: asyncio.create_task(set_stop()))
+        except NotImplementedError:
+            # Windows or fallback
+            signal.signal(sig, handle_signal)
+
+    logger.info("Service is RUNNING. Waiting for stop signal...")
     try:
-        await pyrogram.idle()
+        await stop_event.wait()
     except asyncio.CancelledError:
-        logger.info("Idle cancelled.")
+        logger.info("Main task cancelled.")
     finally:
         logger.info("Shutting down services...")
         
