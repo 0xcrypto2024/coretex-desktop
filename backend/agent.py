@@ -277,15 +277,18 @@ class Agent:
         """
         
         try:
+            logger.info(f"DEBUG: Calling Gemini for Session Turn. User: {user_name}, Prompt Length: {len(prompt)}")
             response = await self.client.aio.models.generate_content(
                 model=self.model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(response_mime_type="application/json")
             )
+            logger.info(f"DEBUG: Gemini Raw Response: {response.text}")
             data = json.loads(response.text)
             return data
         except Exception as e:
-            logger.error(f"Error in session turn: {e}")
+            text_resp = getattr(response, 'text', 'None') if 'response' in locals() else 'None'
+            logger.error(f"Error in session turn (Raw Response: {text_resp}): {e}")
             return {"reply": "I've noted that down. (Error)", "status": "FINISH"}
 
     async def summarize_session(self, history_text: str, user_name: str) -> dict:

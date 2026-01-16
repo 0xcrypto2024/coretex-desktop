@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 from config import NOTION_TOKEN, NOTION_DATABASE_ID
 
 class NotionSync:
-    def __init__(self):
-        self.notion = None
+    def __init__(self, client: AsyncClient = None):
+        self.notion = client
         self.database_id = NOTION_DATABASE_ID
         
         # Auto-fix common copy-paste errors (remove ?v=... and full URL)
@@ -31,6 +31,9 @@ class NotionSync:
         
     def _get_client(self):
         """Lazy initialization of AsyncClient to ensure it attaches to the current loop."""
+        if self.notion:
+            return self.notion
+            
         if not self.notion and self.token:
             self.notion = AsyncClient(auth=self.token)
             logger.info("Notion AsyncClient initialized (Lazy).")

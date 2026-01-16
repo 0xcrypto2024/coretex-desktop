@@ -59,6 +59,35 @@ npm run tauri dev
 *   The Python binary is automatically rebuilt via `backend/build.py` if sources change.
 *   Logs are written to `~/.cortex/cortex.log`.
 
+### Testing
+
+The backend includes a comprehensive test suite using `pytest`.
+
+1.  **Activate Backend Environment**:
+    ```bash
+    cd backend
+    source venv/bin/activate
+    ```
+
+2.  **Run Tests**:
+    ```bash
+    pytest tests
+    ```
+
+### Manual Verification
+
+To run the agent locally (without the Tauri frontend) to verify behavior:
+1.  **Ensure Environment is Active**:
+    ```bash
+    source venv/bin/activate
+    ```
+2.  **Run Main Script**:
+    ```bash
+    python main.py
+    ```
+    This will start the Telegram Listener and the Dashboard API server at `http://localhost:8000`.
+
+
 ## 🛡️ Key Features & Logic
 
 ### 1. Robust Deduplication 🏎️
@@ -93,20 +122,38 @@ cortex-desktop/
 └── README.md           # This file
 ```
 
-## 🔐 Configuration & Security
+## 🔐 Configuration Guide
 
-The application stores your credentials (API keys, Session data) in:
+The application uses a **priority-based** configuration system, loading settings from two sources:
 
-**`~/.cortex/`** (Linux/macOS)
+### 1. File Locations
 
-*   `config.json`: API Keys and settings.
-*   `cortex.session`: Telegram Auth token.
-*   `memory.json`: Long-term memory storage.
+| Priority | Source | Location | Purpose |
+| :--- | :--- | :--- | :--- |
+| **High** | **Config File** | `~/.cortex/config.json` | **Production/Desktop App**. These settings (saved via Settings UI) override everything else. |
+| **Low** | **Environment** | `backend/.env` | **Development/CLI**. Used when running `python main.py` directly if `config.json` is missing or keys are not defined there. |
+
+### 2. How it works
+1.  The app checks `~/.cortex/config.json`.
+2.  If a key (e.g., `NOTION_TOKEN`) is missing there, it falls back to the `.env` file or system environment variables.
+3.  **Result**: If you change a setting in the Desktop UI, it updates `config.json` and takes immediate effect, ignoring your `.env`.
+
+### 3. Application Data
+All sensitive data and logs are stored in your home directory:
+
+*   **Linux/macOS**: `~/.cortex/`
+    *   `config.json`: Persistent settings.
+    *   `cortex.log`: Application logs.
+    *   `memory.json`: Long-term memory database (AI knowledge).
+    *   `cortex.session`: Telegram session file.
 
 > [!WARNING]
-> **Data is stored UNENCRYPTED**.
-> This is standard for developer tools, but means any software running as your user can read these credentials.
-> **Recommendation**: Run `chmod 600 ~/.cortex/config.json` to strictly limit permissions to your user only.
+> **Security Note**: Data in `~/.cortex/` is stored unencrypted.
+> It is recommended to restrict permissions on this folder:
+> ```bash
+> chmod 700 ~/.cortex
+> chmod 600 ~/.cortex/config.json
+> ```
 
 ## ⚠️ Troubleshooting
 

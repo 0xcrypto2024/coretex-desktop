@@ -8,3 +8,6 @@ jinja2
 notion-client
 pyinstaller
 
+pytest
+pytest-asyncio
+pytest-mock

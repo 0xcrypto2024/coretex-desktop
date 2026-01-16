@@ -1,7 +1,7 @@
 from pyrogram import Client, filters, handlers
 import pyrogram
 import json
-from config import API_ID, API_HASH, SESSION_STRING, GROUP_TRIGGER_KEYWORDS, ENABLE_AUTO_REPLY, ENABLE_LONG_TERM_MEMORY, WORKING_HOURS_START, WORKING_HOURS_END, CATCH_UP_SECONDS, is_auto_reply_enabled
+from config import API_ID, API_HASH, SESSION_STRING, GROUP_TRIGGER_KEYWORDS, ENABLE_AUTO_REPLY, ENABLE_LONG_TERM_MEMORY, WORKING_HOURS_START, WORKING_HOURS_END, CATCH_UP_SECONDS, is_auto_reply_enabled, USER_NAME
 from agent import Agent
 from task_manager import TaskManager
 import logging
@@ -23,6 +23,14 @@ from memory_manager import MemoryManager
 memory_manager = MemoryManager()
 from auto_session_manager import AutoSessionManager
 auto_session = AutoSessionManager()
+
+from message_processor import MessageProcessor
+processor = MessageProcessor(
+    agent=intelligence_agent,
+    task_service=tm,
+    memory_manager=memory_manager,
+    auto_session_manager=auto_session
+)
 
 # Initialize Client
 if SESSION_STRING:
@@ -78,27 +86,40 @@ async def message_handler(client, message):
     recent_done = await tm.get_recent_done_tasks(limit=5)
     preferences = await tm.get_preference_examples(limit=5)
     
-    memory_text = "Recent Finished Tasks:\n" + "\n".join([f"- {t['summary']}" for t in recent_done])
-    memory_text += "\n\nUser Preferences (Learning):\n"
-    memory_text += "ACCEPTED Tasks:\n" + "\n".join([f"- [P{t['priority']}] {t['summary']} (from {t['sender']}) " + (f"| Note: {', '.join(t['comments'])}" if t['comments'] else "") for t in preferences['accepted']])
-    memory_text += "\nREJECTED Tasks:\n" + "\n".join([f"- [P{t['priority']}] {t['summary']} (from {t['sender']}) " + (f"| Note: {', '.join(t['comments'])}" if t['comments'] else "") for t in preferences['rejected']])
-    
-    # Inject Long-term Memory
-    if ENABLE_LONG_TERM_MEMORY:
-        memory_text += "\n\n" + memory_manager.get_memories_text()
-
     my_info = await client.get_me() 
-    my_name = (my_info.first_name or "") + (" " + my_info.last_name if my_info.last_name else "")
+    
+    # Name Priority: Config > Username > First Name > "User"
+    from config import USER_NAME
+    my_name = USER_NAME
+    
+    if my_name == "the User": # Default was used
+        if my_info.username:
+            my_name = my_info.username
+        else:
+             my_name = (my_info.first_name or "") + (" " + my_info.last_name if my_info.last_name else "")
+    
     if not my_name.strip(): my_name = "User"
+    logger.info(f"Identity resolved as: {my_name}")
 
     logger.info(f"Step 3: Sending to AI Agent for analysis (Model: {intelligence_agent.model_name})...")
-    analysis = await intelligence_agent.analyze_message(context_text, sender, my_name, memory_text)
-    # Ensure analysis is a dict
-    if not isinstance(analysis, dict):
-        logger.error(f"Analysis is not a dict: {type(analysis)} | Value: {analysis}")
-        analysis = {"priority": 4, "summary": "Analysis format error", "action_required": False}
+    
+    # Message Data Wrapper
+    msg_data = {
+        "sender": sender,
+        "text": message.text or "[Media]"
+    }
+    
+    # Delegate to Processor
+    analysis = await processor.process_message(
+        message_data=msg_data,
+        history_text=context_text,
+        my_name=my_name,
+        user_preferences=preferences,
+        recent_tasks=recent_done
+    )
 
     logger.info(f"Step 4: AI Analysis Complete (P{analysis.get('priority', 4)}): {analysis.get('summary')}")
+    logger.info(f"DEBUG: Full Analysis Object: {analysis}")
     
     
     # ----------------------------------------------------
@@ -110,20 +131,27 @@ async def message_handler(client, message):
         history = auto_session.get_history(message.chat.id)
         
         # Ask Agent for next turn
-        logger.info(f"🔄 Processing Session Turn for {sender}...")
+        logger.info(f"🔄 Processing Session Turn for {sender}... (Active Identity: {my_name})")
         
-        my_info = await client.get_me() 
-        my_name = (my_info.first_name or "") + (" " + my_info.last_name if my_info.last_name else "")
-        if not my_name.strip(): my_name = "User"
+        # Use consistent my_name resolved at the start
 
-        turn_result = await intelligence_agent.handle_session_turn(history, memory_manager.get_memories_text(), my_name)
+        try:
+            logger.info(f"DEBUG: Calling handle_session_turn with my_name='{my_name}'")
+            turn_result = await intelligence_agent.handle_session_turn(history, memory_manager.get_memories_text(), my_name)
+            logger.info(f"DEBUG: Session Turn Result: {turn_result}")
+        except Exception as e:
+            logger.error(f"CRITICAL ERROR calling handle_session_turn: {e}")
+            turn_result = {}
         
         reply = turn_result.get("reply")
         status = turn_result.get("status", "CONTINUE")
         
         if reply:
+            logger.info(f"🤖 Session Auto-Reply: {reply}")
             auto_session.add_message(message.chat.id, "agent", reply)
             await message.reply_text(reply)
+        else:
+            logger.warning("⚠️ Session Turn returned NO reply.")
             
         if status == "FINISH":
             logger.info(f"🏁 Session Finished for {sender}. Summarizing...")
@@ -176,22 +204,22 @@ async def message_handler(client, message):
         
     action_req = analysis.get('action_required', False)
 
-    # Auto-Reply Logic (Strict Alignment)
-    # Only reply if: Enabled + Valid Text + Priority <= 3 + Action Required + Off Hours
-    should_reply = (
-        is_auto_reply_enabled() 
-        and reply_text 
-        and len(reply_text) > 2 
-        and p_val <= 3 # CRITICAL FIX: Only reply to actionable tasks
-        and action_req
-        and not message.from_user.is_self
-        and "task added" not in reply_text.lower()
-        and "okay" != reply_text.lower().strip()
-        and not is_working_hours
+    reply_action = "none" # Default
+
+    # Use Processor for Logic Check
+    should_reply = processor.should_reply(
+        analysis=analysis,
+        is_auto_reply_enabled=is_auto_reply_enabled(),
+        is_working_hours=is_working_hours,
+        is_self=message.from_user.is_self
     )
 
     if is_working_hours and reply_text:
         logger.info(f"Auto-Reply suppressed (Working Hours {WORKING_HOURS_START}-{WORKING_HOURS_END}): {reply_text}")
+        reply_action = "suppressed (working hours)"
+    elif reply_text and not should_reply:
+         logger.info(f"DEBUG: Logic Suppressed Reply. Analysis: {analysis.get('reply_required')}, Action: {action_req}, P: {p_val}")
+         reply_action = "suppressed (logic)"
     
     if should_reply:
         try:
@@ -199,12 +227,24 @@ async def message_handler(client, message):
             final_text = f"{reply_text}\n\n_(🤖 Auto-reply: Out of working hours)_"
             await message.reply_text(final_text)
             
+            # Log Audit immediately for this action
+            try:
+                await tm.log_audit(
+                    message_data={"sender": sender, "text": message.text or "[Media/No Text]"},
+                    evaluation=analysis,
+                    task_created=False, # Session starts, task created later
+                    reply_action="sent"
+                )
+            except Exception as e:
+                logger.error(f"Audit log failed during auto-reply: {e}")
+
             # START SESSION
             auto_session.start_session(message.chat.id, initial_user_msg=message.text, initial_reply=reply_text)
             return # Done for this cycle
             
         except Exception as e:
             logger.error(f"Failed to auto-reply: {e}")
+            reply_action = "failed"
             
     task_created_flag = False
 
@@ -244,7 +284,8 @@ async def message_handler(client, message):
         await tm.log_audit(
             message_data={"sender": sender, "text": message.text or "[Media/No Text]"},
             evaluation=analysis,
-            task_created=task_created_flag
+            task_created=task_created_flag,
+            reply_action=reply_action
         )
     except Exception as e:
         logger.error(f"Audit log failed: {e}")
@@ -560,6 +601,7 @@ async def start_listener():
     if me.last_name: dynamic_keywords.append(me.last_name)
     if me.username: dynamic_keywords.append(me.username)
     logger.info(f"Initialized Keyword Filter: {dynamic_keywords}")
+    logger.info(f"🚀 Listener Module Loaded. Configured Identity: {USER_NAME}")
     
     # START CATCH-UP (Background)
     asyncio.create_task(run_catch_up(app, dynamic_keywords))

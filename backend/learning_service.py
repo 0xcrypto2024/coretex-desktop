@@ -73,8 +73,10 @@ class LearningService:
         # 3. Format for AI
         history_text = "\n".join([f"[{l['timestamp']}] {l['sender']}: {l['text']}" for l in new_logs])
         
+        from config import USER_NAME
+        
         # 4. Analyze
-        facts = await self.agent.analyze_context_batch(history_text)
+        facts = await self.agent.analyze_context_batch(history_text, USER_NAME)
         
         # 5. Save Facts
         added_count = 0

@@ -143,7 +143,7 @@ class TaskManager:
         """Updates the priority of a task."""
         return await self.notion_sync.update_task_priority(task_id, priority)
 
-    async def log_audit(self, message_data, evaluation, task_created=False):
+    async def log_audit(self, message_data, evaluation, task_created=False, reply_action="none"):
         """Logs an AI evaluation to a local JSON file for auditing."""
         import json
         
@@ -152,7 +152,8 @@ class TaskManager:
             "sender": message_data.get("sender"),
             "text": message_data.get("text"),
             "evaluation": evaluation,
-            "task_created": task_created
+            "task_created": task_created,
+            "reply_action": reply_action
         }
         
         # Load existing log
